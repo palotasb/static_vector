@@ -3,6 +3,10 @@
 
 #pragma once
 
+/** Copyrighted according to the LICENSE file.
+ * SPDX-License-Identifier: MIT
+ * */
+
 #include <algorithm> // std::for_each, std::move*
 #include <array>     // std::array
 #include <exception> // std::out_of_range
