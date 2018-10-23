@@ -3,11 +3,11 @@
 
 #pragma once
 
-#include <algorithm> // std::for_each, std::uninitialized_*, std::move*
+#include <algorithm> // std::for_each, std::move*
 #include <array>     // std::array
 #include <exception> // std::out_of_range
 #include <iterator>  // std::reverse_iterator, std::distance
-#include <memory>
+#include <memory>    // std::uninitialized_*,
 #include <utility>   // std::aligned_storage
 
 /** Static vector, a dynamic sized array storage that uses no automatic heap
