@@ -1,0 +1,8 @@
+# We'll use defaults from the LLVM style, but with 4 columns indentation.
+BasedOnStyle: LLVM
+AlignAfterOpenBracket: AlwaysBreak
+AllowAllParametersOfDeclarationOnNextLine: true
+AccessModifierOffset: -4
+PointerAlignment: Left
+IndentWidth: 4
+TabWidth: 4
