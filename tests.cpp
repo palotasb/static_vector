@@ -8,9 +8,56 @@
 
 using namespace stlpb;
 
-void assert_failure(const char* expression, const char* file, long line);
+void debug_print_impl()
+{
+}
+
+template<typename First, typename... T>
+void debug_print_impl(First const& f, T const&... t)
+{
+    std::cerr << f;
+    if (sizeof...(T) != 0)
+    {
+        std::cerr << ", ";
+    }
+    debug_print_impl(t...);
+}
+
+template<typename... T>
+void debug_print(T const&... t)
+{
+    if (sizeof...(T) != 0)
+    {
+        std::cerr << "(";
+    }
+    debug_print_impl(t...);
+    if (sizeof...(T) != 0)
+    {
+        std::cerr << ")";
+    }
+}
+
+template<typename T>
+auto debug_transform(T const& t)
+{
+    return t;
+}
+
+template<typename... T>
+void assert_failure(const char* expression, const char* file, long line, T const&... t) {
+    std::cerr << "Assertion failure: " << expression;
+    debug_print(debug_transform(t)...);
+    std::cerr << " failed at " << file
+              << ':' << line << ".\n";
+    std::exit(1); // Exit program early
+}
 
 #define ASSERT(e) ((e) ? true : (assert_failure(#e, __FILE__, __LINE__), false))
+#define ASSERT_MESSAGE(e, ...) ((e) ? true \
+        : (assert_failure(#e " note (" #__VA_ARGS__ ") == ", __FILE__, __LINE__, __VA_ARGS__), false))
+
+#define ASSERT_EQUAL(a, b) ASSERT_MESSAGE(a == b, a, b)
+#define ASSERT_UNEQUAL(a, b) ASSERT_MESSAGE(a != b, a, b)
 
 // Self-referential object that tests whether copies are semantically correct,
 // using the copy constructors of stored objects.
@@ -73,59 +120,68 @@ int main(int, char* []) {
         {
             // Default ctor; capacity
             static_vector<int, 10> v;
-            ASSERT(v.capacity() == 10);
-            ASSERT(v.size() == 0);
+            ASSERT_EQUAL(v.capacity(), 10);
+            ASSERT_EQUAL(v.size(), 0);
         }
         {
             // "N copy of X" ctor, case N = 0
             static_vector<int, 10> v(0, 100);
-            ASSERT(v.size() == 0);
+            ASSERT_EQUAL(v.size(), 0);
         }
         {
             // "N copy of X" ctor, case 0 < N < capacity
             static_vector<int, 10> v(3, 100);
-            ASSERT(v.size() == 3);
+            ASSERT_EQUAL(v.size(), 3);
             for (auto x : v)
-                ASSERT(x == 100);
+                ASSERT_EQUAL(x, 100);
         }
         {
             // "N copy of X" ctor, case N = capacity
             static_vector<int, 10> v(10, 100);
-            ASSERT(v.size() == 10);
+            ASSERT_EQUAL(v.size(), 10);
             for (auto x : v)
-                ASSERT(x == 100);
+                ASSERT_EQUAL(x, 100);
         }
         {
             // Initializer list constructor
             static_vector<int, 10> v{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-            ASSERT(v.size() == 10);
+            ASSERT_EQUAL(v.size(), 10);
             int i = 1;
             for (auto x : v)
-                ASSERT(x == i++);
+            {
+                ASSERT_EQUAL(x, i);
+                i++;
+            }
         }
         {
             // Iterator constructor
             int a[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
             static_vector<int, 10> v{std::begin(a), std::end(a)};
-            ASSERT(v.size() == 10);
+            ASSERT_EQUAL(v.size(), 10);
             int i = 1;
             for (auto x : v)
-                ASSERT(x == i++);
+            {
+                ASSERT_EQUAL(x, i);
+                i++;
+            }
         }
         {
             // Copy ctor with ints
             static_vector<int, 10> u{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
             static_vector<int, 10> v{u};
-            ASSERT(v.size() == 10);
+            ASSERT_EQUAL(v.size(), 10);
             int i = 1;
             for (auto x : v)
-                ASSERT(x == i++);
+            {
+                ASSERT_EQUAL(x, i);
+                i++;
+            }
         }
         {
             // Copy ctor with nontrivially copyable type
             static_vector<Copyable, 10> u(10, Copyable{});
             static_vector<Copyable, 10> v{u};
-            ASSERT(v.size() == 10);
+            ASSERT_EQUAL(v.size(), 10);
             for (const auto& x : v)
                 ASSERT(x.verify());
         }
@@ -134,17 +190,20 @@ int main(int, char* []) {
             static_vector<int, 10> u{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
             static_vector<int, 10> v;
             v = u;
-            ASSERT(v.size() == 10);
+            ASSERT_EQUAL(v.size(), 10);
             int i = 1;
             for (auto x : v)
-                ASSERT(x == i++);
+            {
+                ASSERT_EQUAL(x, i);
+                i++;
+            }
         }
         {
             // Copy assignment with nontrivially-copyable types
             static_vector<Copyable, 10> u(10, Copyable{});
             static_vector<Copyable, 10> v;
             v = u;
-            ASSERT(v.size() == 10);
+            ASSERT_EQUAL(v.size(), 10);
             for (const auto& x : v)
                 ASSERT(x.verify());
         }
@@ -152,16 +211,19 @@ int main(int, char* []) {
             // Move ctor with ints
             static_vector<int, 10> u{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
             static_vector<int, 10> v{std::move(u)};
-            ASSERT(v.size() == 10);
+            ASSERT_EQUAL(v.size(), 10);
             int i = 1;
             for (auto x : v)
-                ASSERT(x == i++);
+            {
+                ASSERT_EQUAL(x, i);
+                i++;
+            }
         }
         {
             // Move ctor with nontrivially movable type
             static_vector<Movable, 10> u(10);
             static_vector<Movable, 10> v{std::move(u)};
-            ASSERT(v.size() == 10);
+            ASSERT_EQUAL(v.size(), 10);
             for (const auto& x : v)
                 ASSERT(x.verify());
         }
@@ -170,17 +232,20 @@ int main(int, char* []) {
             static_vector<int, 10> u{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
             static_vector<int, 10> v;
             v = std::move(u);
-            ASSERT(v.size() == 10);
+            ASSERT_EQUAL(v.size(), 10);
             int i = 1;
             for (auto x : v)
-                ASSERT(x == i++);
+            {
+                ASSERT_EQUAL(x, i);
+                i++;
+            }
         }
         {
             // Move assignment with nontrivially-movable types
             static_vector<Movable, 10> u(10);
             static_vector<Movable, 10> v;
             v = std::move(u);
-            ASSERT(v.size() == 10);
+            ASSERT_EQUAL(v.size(), 10);
             for (const auto& x : v)
                 ASSERT(x.verify());
         }
@@ -188,88 +253,88 @@ int main(int, char* []) {
             // Insert trivial type into empty vector
             static_vector<int, 10> v;
             v.insert(v.begin(), 100);
-            ASSERT(v.size() == 1);
-            ASSERT(v[0] == 100);
+            ASSERT_EQUAL(v.size(), 1);
+            ASSERT_EQUAL(v[0], 100);
         }
         {
             // Insert trivial type into beginning of vector
             static_vector<int, 10> v{1, 2, 3};
             v.insert(v.begin(), 100);
-            ASSERT(v.size() == 4);
-            ASSERT(v[0] == 100);
-            ASSERT(v[1] == 1);
-            ASSERT(v[2] == 2);
-            ASSERT(v[3] == 3);
+            ASSERT_EQUAL(v.size(), 4);
+            ASSERT_EQUAL(v[0], 100);
+            ASSERT_EQUAL(v[1], 1);
+            ASSERT_EQUAL(v[2], 2);
+            ASSERT_EQUAL(v[3], 3);
         }
         {
             // Insert trivial type into middle of vector
             static_vector<int, 10> v{1, 2, 3};
             v.insert(v.begin() + 1, 100);
-            ASSERT(v.size() == 4);
-            ASSERT(v[0] == 1);
-            ASSERT(v[1] == 100);
-            ASSERT(v[2] == 2);
-            ASSERT(v[3] == 3);
+            ASSERT_EQUAL(v.size(), 4);
+            ASSERT_EQUAL(v[0], 1);
+            ASSERT_EQUAL(v[1], 100);
+            ASSERT_EQUAL(v[2], 2);
+            ASSERT_EQUAL(v[3], 3);
         }
         {
             // Insert trivial type into end of vector
             static_vector<int, 10> v{1, 2, 3};
             v.insert(v.end(), 100);
-            ASSERT(v.size() == 4);
-            ASSERT(v[0] == 1);
-            ASSERT(v[1] == 2);
-            ASSERT(v[2] == 3);
-            ASSERT(v[3] == 100);
+            ASSERT_EQUAL(v.size(), 4);
+            ASSERT_EQUAL(v[0], 1);
+            ASSERT_EQUAL(v[1], 2);
+            ASSERT_EQUAL(v[2], 3);
+            ASSERT_EQUAL(v[3], 100);
         }
         {
             // Insert trivial type into empty vector
             int data[] = {1, 2, 3};
             static_vector<int, 10> v;
             v.insert(v.begin(), std::begin(data), std::end(data));
-            ASSERT(v.size() == 3);
-            ASSERT(v[0] == 1);
-            ASSERT(v[1] == 2);
-            ASSERT(v[2] == 3);
+            ASSERT_EQUAL(v.size(), 3);
+            ASSERT_EQUAL(v[0], 1);
+            ASSERT_EQUAL(v[1], 2);
+            ASSERT_EQUAL(v[2], 3);
         }
         {
             // Insert trivial type into beginning of vector
             int data[] = {1, 2};
             static_vector<int, 10> v{3, 4};
             v.insert(v.begin(), std::begin(data), std::end(data));
-            ASSERT(v.size() == 4);
-            ASSERT(v[0] == 1);
-            ASSERT(v[1] == 2);
-            ASSERT(v[2] == 3);
-            ASSERT(v[3] == 4);
+            ASSERT_EQUAL(v.size(), 4);
+            ASSERT_EQUAL(v[0], 1);
+            ASSERT_EQUAL(v[1], 2);
+            ASSERT_EQUAL(v[2], 3);
+            ASSERT_EQUAL(v[3], 4);
         }
         {
             // Insert trivial type into middle of vector
             int data[] = {2, 3};
             static_vector<int, 10> v{1, 4};
             v.insert(v.begin() + 1, std::begin(data), std::end(data));
-            ASSERT(v.size() == 4);
-            ASSERT(v[0] == 1);
-            ASSERT(v[1] == 2);
-            ASSERT(v[2] == 3);
-            ASSERT(v[3] == 4);
+            ASSERT_EQUAL(v.size(), 4);
+            ASSERT_EQUAL(v[0], 1);
+            ASSERT_EQUAL(v[1], 2);
+            ASSERT_EQUAL(v[2], 3);
+            ASSERT_EQUAL(v[3], 4);
         }
         {
             // Insert trivial type into end of vector
             int data[] = {3, 4};
             static_vector<int, 10> v{1, 2};
             v.insert(v.end(), std::begin(data), std::end(data));
-            ASSERT(v.size() == 4);
-            ASSERT(v[0] == 1);
-            ASSERT(v[1] == 2);
-            ASSERT(v[2] == 3);
-            ASSERT(v[3] == 4);
+            ASSERT_EQUAL(v.size(), 4);
+            ASSERT_EQUAL(v[0], 1);
+            ASSERT_EQUAL(v[1], 2);
+            ASSERT_EQUAL(v[2], 3);
+            ASSERT_EQUAL(v[3], 4);
         }
         {
             // Insert nontrivial type into empty vector
             static_vector<Copyable, 10> v;
             const Copyable c;
             v.insert(v.begin(), c);
-            ASSERT(v.size() == 1);
+            ASSERT_EQUAL(v.size(), 1);
             ASSERT(v[0].verify());
         }
         {
@@ -277,7 +342,7 @@ int main(int, char* []) {
             static_vector<Copyable, 10> v(3);
             const Copyable c;
             v.insert(v.begin(), c);
-            ASSERT(v.size() == 4);
+            ASSERT_EQUAL(v.size(), 4);
             for (const auto& x : v)
                 ASSERT(x.verify());
         }
@@ -286,7 +351,7 @@ int main(int, char* []) {
             static_vector<Copyable, 10> v(3);
             const Copyable c;
             v.insert(v.begin() + 1, c);
-            ASSERT(v.size() == 4);
+            ASSERT_EQUAL(v.size(), 4);
             for (const auto& x : v)
                 ASSERT(x.verify());
         }
@@ -295,7 +360,7 @@ int main(int, char* []) {
             static_vector<Copyable, 10> v(3);
             const Copyable c;
             v.insert(v.end(), c);
-            ASSERT(v.size() == 4);
+            ASSERT_EQUAL(v.size(), 4);
             for (const auto& x : v)
                 ASSERT(x.verify());
         }
@@ -303,7 +368,7 @@ int main(int, char* []) {
             // Insert move-only type into beginning of vector
             static_vector<Movable, 10> v(3);
             v.insert(v.begin(), {});
-            ASSERT(v.size() == 4);
+            ASSERT_EQUAL(v.size(), 4);
             for (const auto& x : v)
                 ASSERT(x.verify());
         }
@@ -311,7 +376,7 @@ int main(int, char* []) {
             // Insert move-only type into middle of vector
             static_vector<Movable, 10> v(3);
             v.insert(v.begin() + 1, {});
-            ASSERT(v.size() == 4);
+            ASSERT_EQUAL(v.size(), 4);
             for (const auto& x : v)
                 ASSERT(x.verify());
         }
@@ -319,7 +384,7 @@ int main(int, char* []) {
             // Insert move-only type into end of vector
             static_vector<Movable, 10> v(3);
             v.insert(v.end(), {});
-            ASSERT(v.size() == 4);
+            ASSERT_EQUAL(v.size(), 4);
             for (const auto& x : v)
                 ASSERT(x.verify());
         }
@@ -327,12 +392,12 @@ int main(int, char* []) {
             // Insert multiple copies of trivial types into middle
             static_vector<int, 10> v{1, 2, 3};
             v.insert(v.begin() + 1, 2, 100);
-            ASSERT(v.size() == 5);
-            ASSERT(v[0] == 1);
-            ASSERT(v[1] == 100);
-            ASSERT(v[2] == 100);
-            ASSERT(v[3] == 2);
-            ASSERT(v[4] == 3);
+            ASSERT_EQUAL(v.size(), 5);
+            ASSERT_EQUAL(v[0], 1);
+            ASSERT_EQUAL(v[1], 100);
+            ASSERT_EQUAL(v[2], 100);
+            ASSERT_EQUAL(v[3], 2);
+            ASSERT_EQUAL(v[4], 3);
             // TODO add more exhaustive tests for this method
             // TODO test return value
         }
@@ -341,7 +406,7 @@ int main(int, char* []) {
             static_vector<std::tuple<Movable, Copyable>, 10> v(3);
             const Copyable c;
             v.emplace(v.begin() + 1, Movable{}, c);
-            ASSERT(v.size() == 4);
+            ASSERT_EQUAL(v.size(), 4);
             for (const auto& x : v) {
                 ASSERT(std::get<0>(x).verify());
                 ASSERT(std::get<1>(x).verify());
@@ -353,15 +418,15 @@ int main(int, char* []) {
             // Erase one element
             static_vector<int, 10> v{1, 2, 3};
             v.erase(v.begin() + 1);
-            ASSERT(v.size() == 2);
-            ASSERT(v[0] == 1);
-            ASSERT(v[1] == 3);
+            ASSERT_EQUAL(v.size(), 2);
+            ASSERT_EQUAL(v[0], 1);
+            ASSERT_EQUAL(v[1], 3);
         }
         {
 
             static_vector<Copyable, 10> v{3};
             v.erase(v.begin() + 1);
-            ASSERT(v.size() == 2);
+            ASSERT_EQUAL(v.size(), 2);
             for (const auto& x : v)
                 ASSERT(x.verify());
         }
@@ -388,7 +453,7 @@ int main(int, char* []) {
                 std::equal_to<>{});
 
             // check that equality values are there
-            ASSERT(z.size() == v.size());
+            ASSERT_EQUAL(z.size(), v.size());
             // check that the two sorts produced the same result
             ASSERT(std::all_of(begin(z), end(z), [](bool b) { return b; }));
         }
@@ -402,15 +467,10 @@ int main(int, char* []) {
     {
         // Check that all destructors ran properly
         // This should be the last test case!
-        ASSERT(Copyable::constructed() == 0);
-        ASSERT(Movable::constructed() == 0);
+        ASSERT_EQUAL(Copyable::constructed(), 0);
+        ASSERT_EQUAL(Movable::constructed(), 0);
     }
 
     return 0;
 }
 
-void assert_failure(const char* expression, const char* file, long line) {
-    std::cerr << "Assertion failure: " << expression << " failed at " << file
-              << ':' << line << ".\n";
-    std::exit(1); // Exit program early
-}
