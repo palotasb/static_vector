@@ -8,6 +8,34 @@
 
 using namespace stlpb;
 
+template<typename T>
+std::ostream& print_cont(std::ostream& os, T const& v){
+    os << "[ ";
+
+    for (int x = 0; x < v.size(); x++)
+    {
+        os << v[x];
+        if (x != v.size() - 1)
+        {
+            os << ", ";
+        }
+    }
+
+    os << " ]";
+
+    return os;
+}
+
+template<typename T, size_t N>
+std::ostream& operator<<(std::ostream& os, static_vector<T, N> const& v){
+    return print_cont(os, v);
+}
+
+template<typename T, size_t N>
+std::ostream& operator<<(std::ostream& os, std::array<T, N> const& v){
+    return print_cont(os, v);
+}
+
 void debug_print_impl()
 {
 }
@@ -58,6 +86,13 @@ void assert_failure(const char* expression, const char* file, long line, T const
 
 #define ASSERT_EQUAL(a, b) ASSERT_MESSAGE(a == b, a, b)
 #define ASSERT_UNEQUAL(a, b) ASSERT_MESSAGE(a != b, a, b)
+
+
+template<typename First, typename... T>
+std::array<First, sizeof...(T) + 1> make_array(First&& f, T&&... t)
+{
+    return { std::forward<First>(f), std::forward<T>(t)... };
+}
 
 // Self-referential object that tests whether copies are semantically correct,
 // using the copy constructors of stored objects.
@@ -113,6 +148,40 @@ private:
 };
 
 int Movable::constructed_ = 0;
+
+static_vector<int, 10> get_123_vector()
+{
+    return {1, 2, 3};
+}
+
+static_vector<int, 10> get_empty_vector()
+{
+    return {};
+}
+
+template<typename F, size_t N>
+void insert_single_test(int index, int data,
+        F const& get_initial_vector, std::array<int, N> const& final_status)
+{
+    auto v = get_initial_vector();
+    v.insert(v.begin() + index, data);
+
+    ASSERT_MESSAGE(
+            std::equal(v.begin(), v.end(), final_status.begin(), final_status.end()),
+            v, final_status);
+}
+
+template<typename F, size_t N1, size_t N2>
+void insert_range_test(int index, std::array<int, N1> data,
+        F const& get_initial_vector, std::array<int, N2> const& final_status)
+{
+    auto v = get_initial_vector();
+    v.insert(v.begin() + index, data.begin(), data.end());
+
+    ASSERT_MESSAGE(
+            std::equal(v.begin(), v.end(), final_status.begin(), final_status.end()),
+            v, final_status);
+}
 
 int main(int, char* []) {
     //
@@ -249,86 +318,25 @@ int main(int, char* []) {
             for (const auto& x : v)
                 ASSERT(x.verify());
         }
-        {
-            // Insert trivial type into empty vector
-            static_vector<int, 10> v;
-            v.insert(v.begin(), 100);
-            ASSERT_EQUAL(v.size(), 1);
-            ASSERT_EQUAL(v[0], 100);
-        }
-        {
-            // Insert trivial type into beginning of vector
-            static_vector<int, 10> v{1, 2, 3};
-            v.insert(v.begin(), 100);
-            ASSERT_EQUAL(v.size(), 4);
-            ASSERT_EQUAL(v[0], 100);
-            ASSERT_EQUAL(v[1], 1);
-            ASSERT_EQUAL(v[2], 2);
-            ASSERT_EQUAL(v[3], 3);
-        }
-        {
-            // Insert trivial type into middle of vector
-            static_vector<int, 10> v{1, 2, 3};
-            v.insert(v.begin() + 1, 100);
-            ASSERT_EQUAL(v.size(), 4);
-            ASSERT_EQUAL(v[0], 1);
-            ASSERT_EQUAL(v[1], 100);
-            ASSERT_EQUAL(v[2], 2);
-            ASSERT_EQUAL(v[3], 3);
-        }
-        {
-            // Insert trivial type into end of vector
-            static_vector<int, 10> v{1, 2, 3};
-            v.insert(v.end(), 100);
-            ASSERT_EQUAL(v.size(), 4);
-            ASSERT_EQUAL(v[0], 1);
-            ASSERT_EQUAL(v[1], 2);
-            ASSERT_EQUAL(v[2], 3);
-            ASSERT_EQUAL(v[3], 100);
-        }
-        {
-            // Insert trivial type into empty vector
-            int data[] = {1, 2, 3};
-            static_vector<int, 10> v;
-            v.insert(v.begin(), std::begin(data), std::end(data));
-            ASSERT_EQUAL(v.size(), 3);
-            ASSERT_EQUAL(v[0], 1);
-            ASSERT_EQUAL(v[1], 2);
-            ASSERT_EQUAL(v[2], 3);
-        }
-        {
-            // Insert trivial type into beginning of vector
-            int data[] = {1, 2};
-            static_vector<int, 10> v{3, 4};
-            v.insert(v.begin(), std::begin(data), std::end(data));
-            ASSERT_EQUAL(v.size(), 4);
-            ASSERT_EQUAL(v[0], 1);
-            ASSERT_EQUAL(v[1], 2);
-            ASSERT_EQUAL(v[2], 3);
-            ASSERT_EQUAL(v[3], 4);
-        }
-        {
-            // Insert trivial type into middle of vector
-            int data[] = {2, 3};
-            static_vector<int, 10> v{1, 4};
-            v.insert(v.begin() + 1, std::begin(data), std::end(data));
-            ASSERT_EQUAL(v.size(), 4);
-            ASSERT_EQUAL(v[0], 1);
-            ASSERT_EQUAL(v[1], 2);
-            ASSERT_EQUAL(v[2], 3);
-            ASSERT_EQUAL(v[3], 4);
-        }
-        {
-            // Insert trivial type into end of vector
-            int data[] = {3, 4};
-            static_vector<int, 10> v{1, 2};
-            v.insert(v.end(), std::begin(data), std::end(data));
-            ASSERT_EQUAL(v.size(), 4);
-            ASSERT_EQUAL(v[0], 1);
-            ASSERT_EQUAL(v[1], 2);
-            ASSERT_EQUAL(v[2], 3);
-            ASSERT_EQUAL(v[3], 4);
-        }
+        insert_single_test(0, 100, get_empty_vector, make_array(100));
+
+        insert_single_test(0, 100, get_123_vector, make_array( 100, 1, 2, 3 ));
+        insert_single_test(1, 100, get_123_vector, make_array( 1, 100, 2, 3 ));
+        insert_single_test(2, 100, get_123_vector, make_array( 1, 2, 100, 3 ));
+        insert_single_test(3, 100, get_123_vector, make_array( 1, 2, 3, 100 ));
+
+        insert_range_test(0, make_array(100, 200), get_empty_vector,
+                make_array( 100, 200 ));
+
+        insert_range_test(0, make_array(100, 200), get_123_vector,
+                make_array( 100, 200, 1, 2, 3 ));
+        insert_range_test(1, make_array(100, 200), get_123_vector,
+                make_array( 1, 100, 200, 2, 3 ));
+        insert_range_test(2, make_array(100, 200), get_123_vector,
+                make_array( 1, 2, 100, 200, 3 ));
+        insert_range_test(3, make_array(100, 200), get_123_vector,
+                make_array( 1, 2, 3, 100, 200 ));
+
         {
             // Insert nontrivial type into empty vector
             static_vector<Copyable, 10> v;
