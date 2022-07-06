@@ -36,6 +36,10 @@ std::ostream& operator<<(std::ostream& os, std::array<T, N> const& v){
     return print_cont(os, v);
 }
 
+std::ostream& operator<<(std::ostream& os, char c){
+    return os.operator<<(+c);
+}
+
 void debug_print_impl()
 {
 }
@@ -89,9 +93,9 @@ void assert_failure(const char* expression, const char* file, long line, T const
 
 
 template<typename First, typename... T>
-std::array<First, sizeof...(T) + 1> make_array(First&& f, T&&... t)
+std::array<char, sizeof...(T) + 1> make_c_array(First&& f, T&&... t)
 {
-    return { std::forward<First>(f), std::forward<T>(t)... };
+    return { static_cast<char>(f), static_cast<char>(t)... };
 }
 
 // Self-referential object that tests whether copies are semantically correct,
@@ -149,19 +153,19 @@ private:
 
 int Movable::constructed_ = 0;
 
-static_vector<int, 10> get_123_vector()
+static_vector<char, 10> get_123_vector()
 {
     return {1, 2, 3};
 }
 
-static_vector<int, 10> get_empty_vector()
+static_vector<char, 10> get_empty_vector()
 {
     return {};
 }
 
 template<typename F, size_t N>
-void insert_single_test(int index, int data,
-        F const& get_initial_vector, std::array<int, N> const& final_status)
+void insert_single_test(int index, char data,
+        F const& get_initial_vector, std::array<char, N> const& final_status)
 {
     auto v = get_initial_vector();
     v.insert(v.begin() + index, data);
@@ -172,8 +176,8 @@ void insert_single_test(int index, int data,
 }
 
 template<typename F, size_t N1, size_t N2>
-void insert_range_test(int index, std::array<int, N1> data,
-        F const& get_initial_vector, std::array<int, N2> const& final_status)
+void insert_range_test(int index, std::array<char, N1> data,
+        F const& get_initial_vector, std::array<char, N2> const& final_status)
 {
     auto v = get_initial_vector();
     v.insert(v.begin() + index, data.begin(), data.end());
@@ -318,24 +322,24 @@ int main(int, char* []) {
             for (const auto& x : v)
                 ASSERT(x.verify());
         }
-        insert_single_test(0, 100, get_empty_vector, make_array(100));
+        insert_single_test(0, 100, get_empty_vector, make_c_array(100));
 
-        insert_single_test(0, 100, get_123_vector, make_array( 100, 1, 2, 3 ));
-        insert_single_test(1, 100, get_123_vector, make_array( 1, 100, 2, 3 ));
-        insert_single_test(2, 100, get_123_vector, make_array( 1, 2, 100, 3 ));
-        insert_single_test(3, 100, get_123_vector, make_array( 1, 2, 3, 100 ));
+        insert_single_test(0, 100, get_123_vector, make_c_array( 100, 1, 2, 3 ));
+        insert_single_test(1, 100, get_123_vector, make_c_array( 1, 100, 2, 3 ));
+        insert_single_test(2, 100, get_123_vector, make_c_array( 1, 2, 100, 3 ));
+        insert_single_test(3, 100, get_123_vector, make_c_array( 1, 2, 3, 100 ));
 
-        insert_range_test(0, make_array(100, 200), get_empty_vector,
-                make_array( 100, 200 ));
+        insert_range_test(0, make_c_array(100, 101), get_empty_vector,
+                make_c_array( 100, 101 ));
 
-        insert_range_test(0, make_array(100, 200), get_123_vector,
-                make_array( 100, 200, 1, 2, 3 ));
-        insert_range_test(1, make_array(100, 200), get_123_vector,
-                make_array( 1, 100, 200, 2, 3 ));
-        insert_range_test(2, make_array(100, 200), get_123_vector,
-                make_array( 1, 2, 100, 200, 3 ));
-        insert_range_test(3, make_array(100, 200), get_123_vector,
-                make_array( 1, 2, 3, 100, 200 ));
+        insert_range_test(0, make_c_array(100, 101), get_123_vector,
+                make_c_array( 100, 101, 1, 2, 3 ));
+        insert_range_test(1, make_c_array(100, 101), get_123_vector,
+                make_c_array( 1, 100, 101, 2, 3 ));
+        insert_range_test(2, make_c_array(100, 101), get_123_vector,
+                make_c_array( 1, 2, 100, 101, 3 ));
+        insert_range_test(3, make_c_array(100, 101), get_123_vector,
+                make_c_array( 1, 2, 3, 100, 101 ));
 
         {
             // Insert nontrivial type into empty vector
