@@ -187,6 +187,30 @@ void insert_range_test(int index, std::array<char, N1> data,
             v, final_status);
 }
 
+
+
+void insert_test()
+{
+    insert_single_test(0, 100, get_empty_vector, make_c_array(100));
+
+    insert_single_test(0, 100, get_123_vector, make_c_array( 100, 1, 2, 3 ));
+    insert_single_test(1, 100, get_123_vector, make_c_array( 1, 100, 2, 3 ));
+    insert_single_test(2, 100, get_123_vector, make_c_array( 1, 2, 100, 3 ));
+    insert_single_test(3, 100, get_123_vector, make_c_array( 1, 2, 3, 100 ));
+
+    insert_range_test(0, make_c_array(100, 101), get_empty_vector,
+            make_c_array( 100, 101 ));
+
+    insert_range_test(0, make_c_array(100, 101), get_123_vector,
+            make_c_array( 100, 101, 1, 2, 3 ));
+    insert_range_test(1, make_c_array(100, 101), get_123_vector,
+            make_c_array( 1, 100, 101, 2, 3 ));
+    insert_range_test(2, make_c_array(100, 101), get_123_vector,
+            make_c_array( 1, 2, 100, 101, 3 ));
+    insert_range_test(3, make_c_array(100, 101), get_123_vector,
+            make_c_array( 1, 2, 3, 100, 101 ));
+}
+
 int main(int, char* []) {
     //
     try {
@@ -322,25 +346,7 @@ int main(int, char* []) {
             for (const auto& x : v)
                 ASSERT(x.verify());
         }
-        insert_single_test(0, 100, get_empty_vector, make_c_array(100));
-
-        insert_single_test(0, 100, get_123_vector, make_c_array( 100, 1, 2, 3 ));
-        insert_single_test(1, 100, get_123_vector, make_c_array( 1, 100, 2, 3 ));
-        insert_single_test(2, 100, get_123_vector, make_c_array( 1, 2, 100, 3 ));
-        insert_single_test(3, 100, get_123_vector, make_c_array( 1, 2, 3, 100 ));
-
-        insert_range_test(0, make_c_array(100, 101), get_empty_vector,
-                make_c_array( 100, 101 ));
-
-        insert_range_test(0, make_c_array(100, 101), get_123_vector,
-                make_c_array( 100, 101, 1, 2, 3 ));
-        insert_range_test(1, make_c_array(100, 101), get_123_vector,
-                make_c_array( 1, 100, 101, 2, 3 ));
-        insert_range_test(2, make_c_array(100, 101), get_123_vector,
-                make_c_array( 1, 2, 100, 101, 3 ));
-        insert_range_test(3, make_c_array(100, 101), get_123_vector,
-                make_c_array( 1, 2, 3, 100, 101 ));
-
+        insert_test();
         {
             // Insert nontrivial type into empty vector
             static_vector<Copyable, 10> v;
