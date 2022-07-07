@@ -271,6 +271,114 @@ void insert_range_test(V const& verify, int index, std::array<char, N1> data,
 template<typename T, typename F>
 void copyable_tests(std::true_type, F const& verify_func)
 {
+    {
+        // "N copy of X" ctor, case N = 0
+        static_vector<T, 10> v(0, T(static_cast<char>(100)));
+        ASSERT_EQUAL(v.size(), 0);
+        ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify_func), v);
+    }
+    {
+        // "N copy of X" ctor, case 0 < N < capacity
+        static_vector<T, 10> v(3, T(static_cast<char>(100)));
+        ASSERT_EQUAL(v.size(), 3);
+        for (auto x : v)
+            ASSERT_EQUAL(x, 100);
+        ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify_func), v);
+    }
+    {
+        // "N copy of X" ctor, case N = capacity
+        static_vector<T, 10> v(10, T(static_cast<char>(100)));
+        ASSERT_EQUAL(v.size(), 10);
+        for (auto x : v)
+            ASSERT_EQUAL(x, 100);
+        ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify_func), v);
+    }
+    {
+        // Initializer list constructor
+        static_vector<T, 10> v{
+            T(static_cast<char>(1)),
+            T(static_cast<char>(2)),
+            T(static_cast<char>(3)),
+            T(static_cast<char>(4)),
+            T(static_cast<char>(5)),
+            T(static_cast<char>(6)),
+            T(static_cast<char>(7)),
+            T(static_cast<char>(8)),
+            T(static_cast<char>(9)),
+            T(static_cast<char>(10))
+        };
+        ASSERT_EQUAL(v.size(), 10);
+        int i = 1;
+        for (auto x : v)
+        {
+            ASSERT_EQUAL(x, i);
+            i++;
+        }
+        ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify_func), v);
+    }
+    {
+        // Iterator constructor
+        char a[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+        static_vector<T, 10> v{std::begin(a), std::end(a)};
+        ASSERT_EQUAL(v.size(), 10);
+        int i = 1;
+        for (auto x : v)
+        {
+            ASSERT_EQUAL(x, i);
+            i++;
+        }
+        ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify_func), v);
+    }
+    {
+        // Copy ctor
+        static_vector<T, 10> u{
+            T(static_cast<char>(1)),
+            T(static_cast<char>(2)),
+            T(static_cast<char>(3)),
+            T(static_cast<char>(4)),
+            T(static_cast<char>(5)),
+            T(static_cast<char>(6)),
+            T(static_cast<char>(7)),
+            T(static_cast<char>(8)),
+            T(static_cast<char>(9)),
+            T(static_cast<char>(10))
+        };
+        static_vector<T, 10> v{u};
+        ASSERT_EQUAL(v.size(), 10);
+        int i = 1;
+        for (auto x : v)
+        {
+            ASSERT_EQUAL(x, i);
+            i++;
+        }
+        ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify_func), v);
+    }
+    {
+        // Copy assignment
+        static_vector<T, 10> u{
+            T(static_cast<char>(1)),
+            T(static_cast<char>(2)),
+            T(static_cast<char>(3)),
+            T(static_cast<char>(4)),
+            T(static_cast<char>(5)),
+            T(static_cast<char>(6)),
+            T(static_cast<char>(7)),
+            T(static_cast<char>(8)),
+            T(static_cast<char>(9)),
+            T(static_cast<char>(10))
+        };
+        static_vector<T, 10> v;
+        v = u;
+        ASSERT_EQUAL(v.size(), 10);
+        int i = 1;
+        for (auto x : v)
+        {
+            ASSERT_EQUAL(x, i);
+            i++;
+        }
+        ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify_func), v);
+    }
+
     insert_range_test(verify_func, 0, make_c_array(100, 101), get_empty_vector<T>,
             make_c_array( 100, 101 ));
 
@@ -294,6 +402,62 @@ void copyable_tests(std::false_type, F const& verify_func)
 template<typename T, typename F, typename Copyable=std::is_copy_constructible<T>>
 void generic_test(F const& verify_func)
 {
+    {
+        // Default ctor; capacity
+        static_vector<T, 10> v;
+        ASSERT_EQUAL(v.capacity(), 10);
+        ASSERT_EQUAL(v.size(), 0);
+        ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify_func), v);
+    }
+    {
+        // Move ctor
+        static_vector<T, 10> u;
+        u.emplace(std::end(u), T(static_cast<char>(1)));
+        u.emplace(std::end(u), T(static_cast<char>(2)));
+        u.emplace(std::end(u), T(static_cast<char>(3)));
+        u.emplace(std::end(u), T(static_cast<char>(4)));
+        u.emplace(std::end(u), T(static_cast<char>(5)));
+        u.emplace(std::end(u), T(static_cast<char>(6)));
+        u.emplace(std::end(u), T(static_cast<char>(7)));
+        u.emplace(std::end(u), T(static_cast<char>(8)));
+        u.emplace(std::end(u), T(static_cast<char>(9)));
+        u.emplace(std::end(u), T(static_cast<char>(10)));
+
+        static_vector<T, 10> v{ std::move(u) };
+        ASSERT_EQUAL(v.size(), 10);
+        int i = 1;
+        for (auto const& x : v)
+        {
+            ASSERT_EQUAL(x, i);
+            i++;
+        }
+        ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify_func), v);
+    }
+    {
+        // Move assignment
+        static_vector<T, 10> u;
+        u.emplace(std::end(u), T(static_cast<char>(1)));
+        u.emplace(std::end(u), T(static_cast<char>(2)));
+        u.emplace(std::end(u), T(static_cast<char>(3)));
+        u.emplace(std::end(u), T(static_cast<char>(4)));
+        u.emplace(std::end(u), T(static_cast<char>(5)));
+        u.emplace(std::end(u), T(static_cast<char>(6)));
+        u.emplace(std::end(u), T(static_cast<char>(7)));
+        u.emplace(std::end(u), T(static_cast<char>(8)));
+        u.emplace(std::end(u), T(static_cast<char>(9)));
+        u.emplace(std::end(u), T(static_cast<char>(10)));
+        static_vector<T, 10> v;
+        v = std::move(u);
+        ASSERT_EQUAL(v.size(), 10);
+        int i = 1;
+        for (auto const& x : v)
+        {
+            ASSERT_EQUAL(x, i);
+            i++;
+        }
+        ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify_func), v);
+    }
+
     insert_single_test(verify_func, 0, 100, get_empty_vector<T>, make_c_array(100));
 
     insert_single_test(verify_func, 0, 100, get_123_vector<T>, make_c_array( 100, 1, 2, 3 ));
@@ -312,138 +476,6 @@ void generic_test()
 int main(int, char* []) {
     //
     try {
-        {
-            // Default ctor; capacity
-            static_vector<int, 10> v;
-            ASSERT_EQUAL(v.capacity(), 10);
-            ASSERT_EQUAL(v.size(), 0);
-        }
-        {
-            // "N copy of X" ctor, case N = 0
-            static_vector<int, 10> v(0, 100);
-            ASSERT_EQUAL(v.size(), 0);
-        }
-        {
-            // "N copy of X" ctor, case 0 < N < capacity
-            static_vector<int, 10> v(3, 100);
-            ASSERT_EQUAL(v.size(), 3);
-            for (auto x : v)
-                ASSERT_EQUAL(x, 100);
-        }
-        {
-            // "N copy of X" ctor, case N = capacity
-            static_vector<int, 10> v(10, 100);
-            ASSERT_EQUAL(v.size(), 10);
-            for (auto x : v)
-                ASSERT_EQUAL(x, 100);
-        }
-        {
-            // Initializer list constructor
-            static_vector<int, 10> v{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-            ASSERT_EQUAL(v.size(), 10);
-            int i = 1;
-            for (auto x : v)
-            {
-                ASSERT_EQUAL(x, i);
-                i++;
-            }
-        }
-        {
-            // Iterator constructor
-            int a[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-            static_vector<int, 10> v{std::begin(a), std::end(a)};
-            ASSERT_EQUAL(v.size(), 10);
-            int i = 1;
-            for (auto x : v)
-            {
-                ASSERT_EQUAL(x, i);
-                i++;
-            }
-        }
-        {
-            // Copy ctor with ints
-            static_vector<int, 10> u{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-            static_vector<int, 10> v{u};
-            ASSERT_EQUAL(v.size(), 10);
-            int i = 1;
-            for (auto x : v)
-            {
-                ASSERT_EQUAL(x, i);
-                i++;
-            }
-        }
-        {
-            // Copy ctor with nontrivially copyable type
-            static_vector<Copyable, 10> u(10, Copyable{});
-            static_vector<Copyable, 10> v{u};
-            ASSERT_EQUAL(v.size(), 10);
-            for (const auto& x : v)
-                ASSERT(x.verify());
-        }
-        {
-            // Copy assignment with ints
-            static_vector<int, 10> u{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-            static_vector<int, 10> v;
-            v = u;
-            ASSERT_EQUAL(v.size(), 10);
-            int i = 1;
-            for (auto x : v)
-            {
-                ASSERT_EQUAL(x, i);
-                i++;
-            }
-        }
-        {
-            // Copy assignment with nontrivially-copyable types
-            static_vector<Copyable, 10> u(10, Copyable{});
-            static_vector<Copyable, 10> v;
-            v = u;
-            ASSERT_EQUAL(v.size(), 10);
-            for (const auto& x : v)
-                ASSERT(x.verify());
-        }
-        {
-            // Move ctor with ints
-            static_vector<int, 10> u{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-            static_vector<int, 10> v{std::move(u)};
-            ASSERT_EQUAL(v.size(), 10);
-            int i = 1;
-            for (auto x : v)
-            {
-                ASSERT_EQUAL(x, i);
-                i++;
-            }
-        }
-        {
-            // Move ctor with nontrivially movable type
-            static_vector<Movable, 10> u(10);
-            static_vector<Movable, 10> v{std::move(u)};
-            ASSERT_EQUAL(v.size(), 10);
-            for (const auto& x : v)
-                ASSERT(x.verify());
-        }
-        {
-            // Move assignment with ints
-            static_vector<int, 10> u{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-            static_vector<int, 10> v;
-            v = std::move(u);
-            ASSERT_EQUAL(v.size(), 10);
-            int i = 1;
-            for (auto x : v)
-            {
-                ASSERT_EQUAL(x, i);
-                i++;
-            }
-        }
-        {
-            // Move assignment with nontrivially-movable types
-            static_vector<Movable, 10> u(10);
-            static_vector<Movable, 10> v;
-            v = std::move(u);
-            ASSERT_EQUAL(v.size(), 10);
-            for (const auto& x : v)
-                ASSERT(x.verify());
-        }
         generic_test<char>();
         generic_test<Copyable>([](auto const& x){ return x.verify(); });
         generic_test<Movable>([](auto const& x){ return x.verify(); });
