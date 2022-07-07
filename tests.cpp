@@ -235,6 +235,45 @@ static_vector<T, 10> get_123_vector()
 }
 
 template<typename T>
+static_vector<T, 10> get_full_vector()
+{
+    // Do the emplacing to allow for move only types
+    static_vector<T, 10> ret;
+
+    ret.emplace(std::end(ret), static_cast<char>(1));
+    ret.emplace(std::end(ret), static_cast<char>(2));
+    ret.emplace(std::end(ret), static_cast<char>(3));
+    ret.emplace(std::end(ret), static_cast<char>(4));
+    ret.emplace(std::end(ret), static_cast<char>(5));
+    ret.emplace(std::end(ret), static_cast<char>(6));
+    ret.emplace(std::end(ret), static_cast<char>(7));
+    ret.emplace(std::end(ret), static_cast<char>(8));
+    ret.emplace(std::end(ret), static_cast<char>(9));
+    ret.emplace(std::end(ret), static_cast<char>(10));
+
+    return std::move(ret);
+}
+
+template<typename T>
+static_vector<T, 10> get_mostly_full_vector()
+{
+    // Do the emplacing to allow for move only types
+    static_vector<T, 10> ret;
+
+    ret.emplace(std::end(ret), static_cast<char>(1));
+    ret.emplace(std::end(ret), static_cast<char>(2));
+    ret.emplace(std::end(ret), static_cast<char>(3));
+    ret.emplace(std::end(ret), static_cast<char>(4));
+    ret.emplace(std::end(ret), static_cast<char>(5));
+    ret.emplace(std::end(ret), static_cast<char>(6));
+    ret.emplace(std::end(ret), static_cast<char>(7));
+    ret.emplace(std::end(ret), static_cast<char>(8));
+    ret.emplace(std::end(ret), static_cast<char>(9));
+
+    return std::move(ret);
+}
+
+template<typename T>
 static_vector<T, 10> get_empty_vector()
 {
     return {};
@@ -245,7 +284,17 @@ void insert_single_test(V const& verify, int index, char data,
         F const& get_initial_vector, std::array<char, N> const& final_status)
 {
     auto v = get_initial_vector();
-    v.insert(v.begin() + index, data);
+    auto initial_size = v.size();
+    try
+    {
+        v.insert(v.begin() + index, data);
+
+        ASSERT_MESSAGE(initial_size + 1 <= 10 && "Should have thrown before getting here", v, initial_size);
+    }
+    catch (...)
+    {
+        ASSERT_MESSAGE(initial_size + 1 > 10, v, initial_size);
+    }
 
     ASSERT_MESSAGE(
             std::equal(v.begin(), v.end(), final_status.begin(), final_status.end()),
@@ -258,7 +307,17 @@ void insert_range_test(V const& verify, int index, std::array<char, N1> data,
         F const& get_initial_vector, std::array<char, N2> const& final_status)
 {
     auto v = get_initial_vector();
-    v.insert(v.begin() + index, data.begin(), data.end());
+    auto initial_size = v.size();
+
+    try
+    {
+        v.insert(v.begin() + index, data.begin(), data.end());
+        ASSERT_MESSAGE(initial_size + N1 <= 10 && "Should have thrown before getting here", v, initial_size, N1);
+    }
+    catch (...)
+    {
+        ASSERT_MESSAGE(initial_size + N1 > 10, v, N1, initial_size);
+    }
 
     ASSERT_MESSAGE(
             std::equal(v.begin(), v.end(), final_status.begin(), final_status.end()),
@@ -451,6 +510,24 @@ void copyable_tests(std::true_type, F const& verify_func)
             make_c_array( 1, 2, 100, 101, 3 ));
     insert_range_test(verify_func, 3, make_c_array(100, 101), get_123_vector<T>,
             make_c_array( 1, 2, 3, 100, 101 ));
+
+    insert_range_test(verify_func, 0, make_c_array(100, 101), get_full_vector<T>,
+            make_c_array(1,2,3,4,5,6,7,8,9,10));
+    insert_range_test(verify_func, 1, make_c_array(100, 101), get_full_vector<T>,
+            make_c_array(1,2,3,4,5,6,7,8,9,10));
+    insert_range_test(verify_func, 2, make_c_array(100, 101), get_full_vector<T>,
+            make_c_array(1,2,3,4,5,6,7,8,9,10));
+    insert_range_test(verify_func, 10, make_c_array(100, 101), get_full_vector<T>,
+            make_c_array(1,2,3,4,5,6,7,8,9,10));
+
+    insert_range_test(verify_func, 0, make_c_array(100, 101), get_mostly_full_vector<T>,
+            make_c_array(1,2,3,4,5,6,7,8,9));
+    insert_range_test(verify_func, 1, make_c_array(100, 101), get_mostly_full_vector<T>,
+            make_c_array(1,2,3,4,5,6,7,8,9));
+    insert_range_test(verify_func, 2, make_c_array(100, 101), get_mostly_full_vector<T>,
+            make_c_array(1,2,3,4,5,6,7,8,9));
+    insert_range_test(verify_func, 10, make_c_array(100, 101), get_mostly_full_vector<T>,
+            make_c_array(1,2,3,4,5,6,7,8,9));
 }
 
 // If the type is move only
@@ -529,6 +606,16 @@ void generic_test(F const& verify_func)
     insert_single_test(verify_func, 1, 100, get_123_vector<T>, make_c_array( 1, 100, 2, 3 ));
     insert_single_test(verify_func, 2, 100, get_123_vector<T>, make_c_array( 1, 2, 100, 3 ));
     insert_single_test(verify_func, 3, 100, get_123_vector<T>, make_c_array( 1, 2, 3, 100 ));
+
+    insert_single_test(verify_func, 0, 100, get_full_vector<T>,
+            make_c_array( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ));
+    insert_single_test(verify_func, 1, 100, get_full_vector<T>,
+            make_c_array( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ));
+    insert_single_test(verify_func, 2, 100, get_full_vector<T>,
+            make_c_array( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ));
+    insert_single_test(verify_func, 10, 100, get_full_vector<T>,
+            make_c_array( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ));
+
     copyable_tests<T>(Copyable{}, verify_func);
 }
 
