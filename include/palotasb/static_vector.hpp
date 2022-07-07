@@ -189,7 +189,7 @@ struct static_vector {
             throw std::out_of_range("index");
     }
 
-    // Element access with bounds checking
+    // Element access without bounds checking
     // Requires: index is less than size
     // Returns: the element at `index`
     // Complexity: constant
