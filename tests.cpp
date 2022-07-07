@@ -92,10 +92,10 @@ void assert_failure(const char* expression, const char* file, long line, T const
 #define ASSERT_UNEQUAL(a, b) ASSERT_MESSAGE(a != b, a, b)
 
 
-template<typename First, typename... T>
-std::array<char, sizeof...(T) + 1> make_c_array(First&& f, T&&... t)
+template<typename... T>
+std::array<char, sizeof...(T)> make_c_array(T&&... t)
 {
-    return { static_cast<char>(f), static_cast<char>(t)... };
+    return { static_cast<char>(t)... };
 }
 
 // Self-referential object that tests whether copies are semantically correct,
@@ -268,6 +268,17 @@ void insert_range_test(V const& verify, int index, std::array<char, N1> data,
 
 
 template<typename T, typename F>
+void n_default_test(F const& verify_func, int n)
+{
+    // "N copy of X" ctor
+    static_vector<T, 10> v(n);
+    ASSERT_EQUAL(v.size(), n);
+    for (auto const& x : v)
+        ASSERT_EQUAL(x, 0);
+    ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify_func), v);
+}
+
+template<typename T, typename F>
 void n_copy_test(F const& verify_func, int n)
 {
     // "N copy of X" ctor
@@ -278,37 +289,94 @@ void n_copy_test(F const& verify_func, int n)
     ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify_func), v);
 }
 
+template<typename T, typename F, typename... L>
+void initializer_list_test(F const& verify_func, L const&... l)
+{
+    try
+    {
+        // Initializer list constructor
+        static_vector<T, 10> v{
+            T(static_cast<char>(l))...
+        };
+
+        ASSERT(sizeof...(l) <= 10 && "Should have thrown because size to large");
+
+        auto arry = make_c_array(l...);
+        ASSERT_MESSAGE(
+                std::equal(v.begin(), v.end(), arry.begin(), arry.end()), v, arry);
+        ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify_func), v);
+    }
+    catch (...)
+    {
+        ASSERT(sizeof...(l) > 10 && "Exception should not have been thrown");
+    }
+}
+
+template<typename T, typename F, typename... L>
+void iterator_const_test(F const& verify_func, L const&... l)
+{
+    try
+    {
+        auto arry = make_c_array(l...);
+
+        // Note that this works even for the move only type, because the
+        // original array is not of the same type as the value_type of the
+        // vector, so it is actually newly constructed objects being inserted
+        static_vector<T, 10> v{
+            std::begin(arry), std:end(arry)
+        };
+
+        ASSERT_MESSAGE(sizeof...(l) <= 10 && "Should have thrown because size to large", v);
+
+        ASSERT_MESSAGE(
+                std::equal(v.begin(), v.end(), arry.begin(), arry.end()), v, arry);
+        ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify_func), v);
+    }
+    catch (...)
+    {
+        ASSERT(sizeof...(l) > 10 && "Exception should not have been thrown");
+    }
+}
+
 
 // If the type is copyable
 template<typename T, typename F>
 void copyable_tests(std::true_type, F const& verify_func)
 {
+    n_default_test<T>(verify_func, 0);
+    n_default_test<T>(verify_func, 3);
+    n_default_test<T>(verify_func, 10);
+    {
+        try
+        {
+            // "N default" ctor
+            static_vector<T, 10> v(11);
+            ASSERT_MESSAGE(false, v);
+        }
+        catch (...)
+        {
+        }
+    }
+
     n_copy_test<T>(verify_func, 0);
     n_copy_test<T>(verify_func, 3);
     n_copy_test<T>(verify_func, 10);
     {
-        // Initializer list constructor
-        static_vector<T, 10> v{
-            T(static_cast<char>(1)),
-            T(static_cast<char>(2)),
-            T(static_cast<char>(3)),
-            T(static_cast<char>(4)),
-            T(static_cast<char>(5)),
-            T(static_cast<char>(6)),
-            T(static_cast<char>(7)),
-            T(static_cast<char>(8)),
-            T(static_cast<char>(9)),
-            T(static_cast<char>(10))
-        };
-        ASSERT_EQUAL(v.size(), 10);
-        int i = 1;
-        for (auto x : v)
+        try
         {
-            ASSERT_EQUAL(x, i);
-            i++;
+            // "N copy of X" ctor
+            static_vector<T, 10> v(11, T(static_cast<char>(100)));
+            ASSERT_MESSAGE(false, v);
         }
-        ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify_func), v);
+        catch (...)
+        {
+        }
     }
+
+    initializer_list_test<T>(verify_func);
+    initializer_list_test<T>(verify_func, 1, 2, 3);
+    initializer_list_test<T>(verify_func, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+    initializer_list_test<T>(verify_func, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11);
     {
         // Iterator constructor
         char a[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
@@ -450,6 +518,10 @@ void generic_test(F const& verify_func)
         }
         ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify_func), v);
     }
+    iterator_const_test<T>(verify_func);
+    iterator_const_test<T>(verify_func, 1,2,3,4,5,6,7,8,9,10);
+    iterator_const_test<T>(verify_func, 1,2,3,4,5,6,7,8,9,10,11);
+    iterator_const_test<T>(verify_func, 1,2,3,4,5,6,7,8,9,10,11,12);
 
     insert_single_test(verify_func, 0, 100, get_empty_vector<T>, make_c_array(100));
 

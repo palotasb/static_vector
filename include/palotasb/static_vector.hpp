@@ -80,16 +80,16 @@ struct static_vector {
     //  The static_vector contains `count` elements copy-constructed from
     //  `value`.
     // Complexity: O(count)
-    // Exceptions: noexcept iff the copy constructor of value_type is noexcept
+    // Exceptions: if the copy constructor throws or if this trys to create too
+    // many objects then throws std::out_of_range
     static_vector(size_type count, const_reference value) //
-        noexcept(noexcept(value_type(value)))
-        : m_size(count) {
+        : m_size(count <= static_capacity ? count : throw std::out_of_range("size()")) {
         std::uninitialized_fill(begin(), end(), value);
     }
 
     // "N default constructed items" constructor
-    static_vector(size_type count) noexcept(noexcept(value_type{}))
-        : m_size(count) {
+    static_vector(size_type count)
+        : m_size(count <= static_capacity ? count : throw std::out_of_range("size()")) {
         std::for_each( // C++17 would use std::uninitialized_default_construct
             storage_begin(), storage_end(), [](storage_type& store) {
                 new (static_cast<void*>(&store)) value_type;
@@ -99,6 +99,9 @@ struct static_vector {
     // Initializer list constructor
     static_vector(std::initializer_list<value_type> init_list)
         : m_size(init_list.end() - init_list.begin()) {
+        if (m_size > static_capacity)
+            throw std::out_of_range("size()");
+
         std::uninitialized_copy(init_list.begin(), init_list.end(), begin());
     }
 
@@ -147,6 +150,10 @@ struct static_vector {
         typename = decltype(++std::declval<Iter&>())>
     static_vector(Iter input_begin, Iter input_end) {
         m_size = std::distance(input_begin, input_end);
+        if (m_size > static_capacity)
+        {
+            throw std::out_of_range("size()");
+        }
         std::uninitialized_copy(input_begin, input_end, begin());
     }
 
