@@ -78,7 +78,7 @@ auto debug_transform(T const& t)
 template<typename... T>
 void assert_failure(const char* expression, const char* file, long line, T const&... t) {
     std::cerr << "Assertion failure: " << expression;
-    debug_print(debug_transform(t)...);
+    debug_print(t...);
     std::cerr << " failed at " << file
               << ':' << line << ".\n";
     std::exit(1); // Exit program early
@@ -163,35 +163,75 @@ int Copyable_t<T>::constructed_ = 0;
 using Copyable = Copyable_t<>;
 
 // Self-referential object that tests whether moves are semantically correct.
-struct Movable {
-    Movable() : self(this) { constructed_++; }
-    Movable(const Movable&) = delete;
-    Movable& operator=(const Movable&) = delete;
-    Movable(Movable&& other) : self(other.verify() ? this : nullptr) {
+template<typename T = char>
+struct Movable_t {
+    Movable_t() : self(this) { constructed_++; }
+
+    template<typename U,
+        typename=std::enable_if_t<
+            std::is_same<std::decay_t<U>, T>::value
+        >
+    >
+    Movable_t(U&& t) : Movable_t() {
+        inner = std::forward<U>(t);
+    }
+
+    Movable_t(const Movable_t&) = delete;
+    Movable_t& operator=(const Movable_t&) = delete;
+    Movable_t(Movable_t&& other) : self(other.verify() ? this : nullptr),
+                                   inner(other.inner)
+    {
         other.self = nullptr;
         constructed_++;
     }
-    Movable& operator=(Movable&& other) {
+    Movable_t& operator=(Movable_t&& other) {
         self = other.verify() ? this : nullptr;
+        inner = other.inner;
         other.self = nullptr;
         return *this;
     }
-    ~Movable() { constructed_--; }
+    ~Movable_t() { constructed_--; }
 
     bool verify() const noexcept { return self == this; }
 
     static int constructed() noexcept { return constructed_; }
+
+    friend bool operator==(Movable_t const& c, T const& t)
+    {
+        return c.inner == t;
+    }
+
+    friend bool operator==(T const& t, Movable_t const& c)
+    {
+        return c.inner == t;
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, Movable_t const& c){
+        os << "Movable(" << c.inner << (c.verify() ? "" : " !") << ")";
+        return os;
+    }
 private:
-    const Movable* self;
+    const Movable_t* self;
+    T inner = {};
     static int constructed_;
 };
 
-int Movable::constructed_ = 0;
+template<typename T>
+int Movable_t<T>::constructed_ = 0;
+
+using Movable = Movable_t<>;
 
 template<typename T>
 static_vector<T, 10> get_123_vector()
 {
-    return {static_cast<char>(1), static_cast<char>(2), static_cast<char>(3)};
+    // Do the emplacing to allow for move only types
+    static_vector<T, 10> ret;
+
+    ret.emplace(std::end(ret), static_cast<char>(1));
+    ret.emplace(std::end(ret), static_cast<char>(2));
+    ret.emplace(std::end(ret), static_cast<char>(3));
+
+    return std::move(ret);
 }
 
 template<typename T>
@@ -227,16 +267,10 @@ void insert_range_test(V const& verify, int index, std::array<char, N1> data,
 }
 
 
+// If the type is copyable
 template<typename T, typename F>
-void insert_test(F const& verify_func)
+void insert_range_test(std::true_type, F const& verify_func)
 {
-    insert_single_test(verify_func, 0, 100, get_empty_vector<T>, make_c_array(100));
-
-    insert_single_test(verify_func, 0, 100, get_123_vector<T>, make_c_array( 100, 1, 2, 3 ));
-    insert_single_test(verify_func, 1, 100, get_123_vector<T>, make_c_array( 1, 100, 2, 3 ));
-    insert_single_test(verify_func, 2, 100, get_123_vector<T>, make_c_array( 1, 2, 100, 3 ));
-    insert_single_test(verify_func, 3, 100, get_123_vector<T>, make_c_array( 1, 2, 3, 100 ));
-
     insert_range_test(verify_func, 0, make_c_array(100, 101), get_empty_vector<T>,
             make_c_array( 100, 101 ));
 
@@ -248,6 +282,25 @@ void insert_test(F const& verify_func)
             make_c_array( 1, 2, 100, 101, 3 ));
     insert_range_test(verify_func, 3, make_c_array(100, 101), get_123_vector<T>,
             make_c_array( 1, 2, 3, 100, 101 ));
+}
+
+// If the type is move only
+template<typename T, typename F>
+void insert_range_test(std::false_type, F const& verify_func)
+{
+}
+
+
+template<typename T, typename F, typename Copyable=std::is_copy_constructible<T>>
+void insert_test(F const& verify_func)
+{
+    insert_single_test(verify_func, 0, 100, get_empty_vector<T>, make_c_array(100));
+
+    insert_single_test(verify_func, 0, 100, get_123_vector<T>, make_c_array( 100, 1, 2, 3 ));
+    insert_single_test(verify_func, 1, 100, get_123_vector<T>, make_c_array( 1, 100, 2, 3 ));
+    insert_single_test(verify_func, 2, 100, get_123_vector<T>, make_c_array( 1, 2, 100, 3 ));
+    insert_single_test(verify_func, 3, 100, get_123_vector<T>, make_c_array( 1, 2, 3, 100 ));
+    insert_range_test<T>(Copyable{}, verify_func);
 }
 
 template<typename T>
@@ -393,30 +446,7 @@ int main(int, char* []) {
         }
         insert_test<char>();
         insert_test<Copyable>([](auto const& x){ return x.verify(); });
-        {
-            // Insert move-only type into beginning of vector
-            static_vector<Movable, 10> v(3);
-            v.insert(v.begin(), {});
-            ASSERT_EQUAL(v.size(), 4);
-            for (const auto& x : v)
-                ASSERT(x.verify());
-        }
-        {
-            // Insert move-only type into middle of vector
-            static_vector<Movable, 10> v(3);
-            v.insert(v.begin() + 1, {});
-            ASSERT_EQUAL(v.size(), 4);
-            for (const auto& x : v)
-                ASSERT(x.verify());
-        }
-        {
-            // Insert move-only type into end of vector
-            static_vector<Movable, 10> v(3);
-            v.insert(v.end(), {});
-            ASSERT_EQUAL(v.size(), 4);
-            for (const auto& x : v)
-                ASSERT(x.verify());
-        }
+        insert_test<Movable>([](auto const& x){ return x.verify(); });
         {
             // Insert multiple copies of trivial types into middle
             static_vector<int, 10> v{1, 2, 3};
