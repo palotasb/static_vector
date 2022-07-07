@@ -269,7 +269,7 @@ void insert_range_test(V const& verify, int index, std::array<char, N1> data,
 
 // If the type is copyable
 template<typename T, typename F>
-void insert_range_test(std::true_type, F const& verify_func)
+void copyable_tests(std::true_type, F const& verify_func)
 {
     insert_range_test(verify_func, 0, make_c_array(100, 101), get_empty_vector<T>,
             make_c_array( 100, 101 ));
@@ -286,13 +286,13 @@ void insert_range_test(std::true_type, F const& verify_func)
 
 // If the type is move only
 template<typename T, typename F>
-void insert_range_test(std::false_type, F const& verify_func)
+void copyable_tests(std::false_type, F const& verify_func)
 {
 }
 
 
 template<typename T, typename F, typename Copyable=std::is_copy_constructible<T>>
-void insert_test(F const& verify_func)
+void generic_test(F const& verify_func)
 {
     insert_single_test(verify_func, 0, 100, get_empty_vector<T>, make_c_array(100));
 
@@ -300,13 +300,13 @@ void insert_test(F const& verify_func)
     insert_single_test(verify_func, 1, 100, get_123_vector<T>, make_c_array( 1, 100, 2, 3 ));
     insert_single_test(verify_func, 2, 100, get_123_vector<T>, make_c_array( 1, 2, 100, 3 ));
     insert_single_test(verify_func, 3, 100, get_123_vector<T>, make_c_array( 1, 2, 3, 100 ));
-    insert_range_test<T>(Copyable{}, verify_func);
+    copyable_tests<T>(Copyable{}, verify_func);
 }
 
 template<typename T>
-void insert_test()
+void generic_test()
 {
-    return insert_test<T>([](auto const& x) { return true; });
+    return generic_test<T>([](auto const& x) { return true; });
 }
 
 int main(int, char* []) {
@@ -444,9 +444,9 @@ int main(int, char* []) {
             for (const auto& x : v)
                 ASSERT(x.verify());
         }
-        insert_test<char>();
-        insert_test<Copyable>([](auto const& x){ return x.verify(); });
-        insert_test<Movable>([](auto const& x){ return x.verify(); });
+        generic_test<char>();
+        generic_test<Copyable>([](auto const& x){ return x.verify(); });
+        generic_test<Movable>([](auto const& x){ return x.verify(); });
         {
             // Insert multiple copies of trivial types into middle
             static_vector<int, 10> v{1, 2, 3};
