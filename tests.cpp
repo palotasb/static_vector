@@ -100,32 +100,67 @@ std::array<char, sizeof...(T) + 1> make_c_array(First&& f, T&&... t)
 
 // Self-referential object that tests whether copies are semantically correct,
 // using the copy constructors of stored objects.
-struct Copyable {
-    Copyable() : self(this) { constructed_++; }
-    Copyable(const Copyable& other) : self(other.verify() ? this : nullptr) {
+//
+// It also stores a payload in order to allow us to treat it "like" an int or
+// whatever in order to allow us to verify orders
+template<typename T = char>
+struct Copyable_t {
+    Copyable_t() : self(this) { constructed_++; }
+
+    template<typename U,
+        typename=std::enable_if_t<
+            std::is_same<std::decay_t<U>, T>::value
+        >
+    >
+    Copyable_t(U&& t) : Copyable_t() {
+        inner = std::forward<U>(t);
+    }
+
+    Copyable_t(const Copyable_t& other)
+        : self(other.verify() ? this : nullptr), inner(other.inner) {
         constructed_++;
     }
-    Copyable& operator=(const Copyable& other) {
+    Copyable_t& operator=(const Copyable_t& other) {
         self = other.verify() ? this : nullptr;
+        this->inner = other.inner;
         return *this;
     }
-    Copyable(Copyable&& other)
-        : Copyable(static_cast<const Copyable&>(other)) {}
-    Copyable& operator=(Copyable&& other) {
-        return (*this) = static_cast<const Copyable&>(other);
+    Copyable_t(Copyable_t&& other)
+        : Copyable_t(static_cast<const Copyable_t&>(other)) {}
+    Copyable_t& operator=(Copyable_t&& other) {
+        return (*this) = static_cast<const Copyable_t&>(other);
     }
-    ~Copyable() { constructed_--; }
+    ~Copyable_t() { constructed_--; }
 
     bool verify() const noexcept { return self == this; }
 
     static int constructed() noexcept { return constructed_; }
 
+    friend bool operator==(Copyable_t const& c, T const& t)
+    {
+        return c.inner == t;
+    }
+
+    friend bool operator==(T const& t, Copyable_t const& c)
+    {
+        return c.inner == t;
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, Copyable_t c){
+        os << "Copyable(" << c.inner << (c.verify() ? "" : " !") << ")";
+        return os;
+    }
+
 private:
-    const Copyable* self;
+    const Copyable_t* self;
+    T inner = {};
     static int constructed_;
 };
 
-int Copyable::constructed_ = 0;
+template<typename T>
+int Copyable_t<T>::constructed_ = 0;
+
+using Copyable = Copyable_t<>;
 
 // Self-referential object that tests whether moves are semantically correct.
 struct Movable {
@@ -153,18 +188,20 @@ private:
 
 int Movable::constructed_ = 0;
 
-static_vector<char, 10> get_123_vector()
+template<typename T>
+static_vector<T, 10> get_123_vector()
 {
-    return {1, 2, 3};
+    return {static_cast<char>(1), static_cast<char>(2), static_cast<char>(3)};
 }
 
-static_vector<char, 10> get_empty_vector()
+template<typename T>
+static_vector<T, 10> get_empty_vector()
 {
     return {};
 }
 
-template<typename F, size_t N>
-void insert_single_test(int index, char data,
+template<typename V, typename F, size_t N>
+void insert_single_test(V const& verify, int index, char data,
         F const& get_initial_vector, std::array<char, N> const& final_status)
 {
     auto v = get_initial_vector();
@@ -173,10 +210,11 @@ void insert_single_test(int index, char data,
     ASSERT_MESSAGE(
             std::equal(v.begin(), v.end(), final_status.begin(), final_status.end()),
             v, final_status);
+    ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify), v);
 }
 
-template<typename F, size_t N1, size_t N2>
-void insert_range_test(int index, std::array<char, N1> data,
+template<typename V, typename F, size_t N1, size_t N2>
+void insert_range_test(V const& verify, int index, std::array<char, N1> data,
         F const& get_initial_vector, std::array<char, N2> const& final_status)
 {
     auto v = get_initial_vector();
@@ -185,30 +223,37 @@ void insert_range_test(int index, std::array<char, N1> data,
     ASSERT_MESSAGE(
             std::equal(v.begin(), v.end(), final_status.begin(), final_status.end()),
             v, final_status);
+    ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify), v);
 }
 
 
-
-void insert_test()
+template<typename T, typename F>
+void insert_test(F const& verify_func)
 {
-    insert_single_test(0, 100, get_empty_vector, make_c_array(100));
+    insert_single_test(verify_func, 0, 100, get_empty_vector<T>, make_c_array(100));
 
-    insert_single_test(0, 100, get_123_vector, make_c_array( 100, 1, 2, 3 ));
-    insert_single_test(1, 100, get_123_vector, make_c_array( 1, 100, 2, 3 ));
-    insert_single_test(2, 100, get_123_vector, make_c_array( 1, 2, 100, 3 ));
-    insert_single_test(3, 100, get_123_vector, make_c_array( 1, 2, 3, 100 ));
+    insert_single_test(verify_func, 0, 100, get_123_vector<T>, make_c_array( 100, 1, 2, 3 ));
+    insert_single_test(verify_func, 1, 100, get_123_vector<T>, make_c_array( 1, 100, 2, 3 ));
+    insert_single_test(verify_func, 2, 100, get_123_vector<T>, make_c_array( 1, 2, 100, 3 ));
+    insert_single_test(verify_func, 3, 100, get_123_vector<T>, make_c_array( 1, 2, 3, 100 ));
 
-    insert_range_test(0, make_c_array(100, 101), get_empty_vector,
+    insert_range_test(verify_func, 0, make_c_array(100, 101), get_empty_vector<T>,
             make_c_array( 100, 101 ));
 
-    insert_range_test(0, make_c_array(100, 101), get_123_vector,
+    insert_range_test(verify_func, 0, make_c_array(100, 101), get_123_vector<T>,
             make_c_array( 100, 101, 1, 2, 3 ));
-    insert_range_test(1, make_c_array(100, 101), get_123_vector,
+    insert_range_test(verify_func, 1, make_c_array(100, 101), get_123_vector<T>,
             make_c_array( 1, 100, 101, 2, 3 ));
-    insert_range_test(2, make_c_array(100, 101), get_123_vector,
+    insert_range_test(verify_func, 2, make_c_array(100, 101), get_123_vector<T>,
             make_c_array( 1, 2, 100, 101, 3 ));
-    insert_range_test(3, make_c_array(100, 101), get_123_vector,
+    insert_range_test(verify_func, 3, make_c_array(100, 101), get_123_vector<T>,
             make_c_array( 1, 2, 3, 100, 101 ));
+}
+
+template<typename T>
+void insert_test()
+{
+    return insert_test<T>([](auto const& x) { return true; });
 }
 
 int main(int, char* []) {
@@ -346,42 +391,8 @@ int main(int, char* []) {
             for (const auto& x : v)
                 ASSERT(x.verify());
         }
-        insert_test();
-        {
-            // Insert nontrivial type into empty vector
-            static_vector<Copyable, 10> v;
-            const Copyable c;
-            v.insert(v.begin(), c);
-            ASSERT_EQUAL(v.size(), 1);
-            ASSERT(v[0].verify());
-        }
-        {
-            // Insert nontrivial type into beginning of vector
-            static_vector<Copyable, 10> v(3);
-            const Copyable c;
-            v.insert(v.begin(), c);
-            ASSERT_EQUAL(v.size(), 4);
-            for (const auto& x : v)
-                ASSERT(x.verify());
-        }
-        {
-            // Insert nontrivial type into middle of vector
-            static_vector<Copyable, 10> v(3);
-            const Copyable c;
-            v.insert(v.begin() + 1, c);
-            ASSERT_EQUAL(v.size(), 4);
-            for (const auto& x : v)
-                ASSERT(x.verify());
-        }
-        {
-            // Insert nontrivial type into end of vector
-            static_vector<Copyable, 10> v(3);
-            const Copyable c;
-            v.insert(v.end(), c);
-            ASSERT_EQUAL(v.size(), 4);
-            for (const auto& x : v)
-                ASSERT(x.verify());
-        }
+        insert_test<char>();
+        insert_test<Copyable>([](auto const& x){ return x.verify(); });
         {
             // Insert move-only type into beginning of vector
             static_vector<Movable, 10> v(3);
