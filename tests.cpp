@@ -267,32 +267,25 @@ void insert_range_test(V const& verify, int index, std::array<char, N1> data,
 }
 
 
+template<typename T, typename F>
+void n_copy_test(F const& verify_func, int n)
+{
+    // "N copy of X" ctor
+    static_vector<T, 10> v(n, T(static_cast<char>(100)));
+    ASSERT_EQUAL(v.size(), n);
+    for (auto const& x : v)
+        ASSERT_EQUAL(x, 100);
+    ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify_func), v);
+}
+
+
 // If the type is copyable
 template<typename T, typename F>
 void copyable_tests(std::true_type, F const& verify_func)
 {
-    {
-        // "N copy of X" ctor, case N = 0
-        static_vector<T, 10> v(0, T(static_cast<char>(100)));
-        ASSERT_EQUAL(v.size(), 0);
-        ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify_func), v);
-    }
-    {
-        // "N copy of X" ctor, case 0 < N < capacity
-        static_vector<T, 10> v(3, T(static_cast<char>(100)));
-        ASSERT_EQUAL(v.size(), 3);
-        for (auto x : v)
-            ASSERT_EQUAL(x, 100);
-        ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify_func), v);
-    }
-    {
-        // "N copy of X" ctor, case N = capacity
-        static_vector<T, 10> v(10, T(static_cast<char>(100)));
-        ASSERT_EQUAL(v.size(), 10);
-        for (auto x : v)
-            ASSERT_EQUAL(x, 100);
-        ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify_func), v);
-    }
+    n_copy_test<T>(verify_func, 0);
+    n_copy_test<T>(verify_func, 3);
+    n_copy_test<T>(verify_func, 10);
     {
         // Initializer list constructor
         static_vector<T, 10> v{
