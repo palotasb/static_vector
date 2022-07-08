@@ -279,15 +279,15 @@ static_vector<T, 10> get_empty_vector()
     return {};
 }
 
-template<typename V, typename F, size_t N>
-void insert_single_test(V const& verify, int index, char data,
+template<typename V, typename I, typename F, size_t N>
+void insert_single_test(V const& verify, int index, char data, I const& insert,
         F const& get_initial_vector, std::array<char, N> const& final_status)
 {
     auto v = get_initial_vector();
     auto initial_size = v.size();
     try
     {
-        v.insert(v.begin() + index, data);
+        insert(v, v.begin() + index, data);
 
         ASSERT_MESSAGE(initial_size + 1 <= 10 && "Should have thrown before getting here", v, initial_size);
     }
@@ -300,6 +300,26 @@ void insert_single_test(V const& verify, int index, char data,
             std::equal(v.begin(), v.end(), final_status.begin(), final_status.end()),
             v, final_status);
     ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify), v);
+}
+
+template<typename T, typename V, typename I>
+void insert_single_tests(V const& verify_func, I const& insert)
+{
+    insert_single_test(verify_func, 0, 100, insert, get_empty_vector<T>, make_c_array(100));
+
+    insert_single_test(verify_func, 0, 100, insert, get_123_vector<T>, make_c_array( 100, 1, 2, 3 ));
+    insert_single_test(verify_func, 1, 100, insert, get_123_vector<T>, make_c_array( 1, 100, 2, 3 ));
+    insert_single_test(verify_func, 2, 100, insert, get_123_vector<T>, make_c_array( 1, 2, 100, 3 ));
+    insert_single_test(verify_func, 3, 100, insert, get_123_vector<T>, make_c_array( 1, 2, 3, 100 ));
+
+    insert_single_test(verify_func, 0, 100, insert, get_full_vector<T>,
+            make_c_array( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ));
+    insert_single_test(verify_func, 1, 100, insert, get_full_vector<T>,
+            make_c_array( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ));
+    insert_single_test(verify_func, 2, 100, insert, get_full_vector<T>,
+            make_c_array( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ));
+    insert_single_test(verify_func, 10, 100, insert, get_full_vector<T>,
+            make_c_array( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ));
 }
 
 template<typename V, typename F, size_t N1, size_t N2>
@@ -600,21 +620,16 @@ void generic_test(F const& verify_func)
     iterator_const_test<T>(verify_func, 1,2,3,4,5,6,7,8,9,10,11);
     iterator_const_test<T>(verify_func, 1,2,3,4,5,6,7,8,9,10,11,12);
 
-    insert_single_test(verify_func, 0, 100, get_empty_vector<T>, make_c_array(100));
+    insert_single_tests<T>(verify_func, [](auto& v, auto it, char data){
+        v.insert(it, data);
+    });
 
-    insert_single_test(verify_func, 0, 100, get_123_vector<T>, make_c_array( 100, 1, 2, 3 ));
-    insert_single_test(verify_func, 1, 100, get_123_vector<T>, make_c_array( 1, 100, 2, 3 ));
-    insert_single_test(verify_func, 2, 100, get_123_vector<T>, make_c_array( 1, 2, 100, 3 ));
-    insert_single_test(verify_func, 3, 100, get_123_vector<T>, make_c_array( 1, 2, 3, 100 ));
-
-    insert_single_test(verify_func, 0, 100, get_full_vector<T>,
-            make_c_array( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ));
-    insert_single_test(verify_func, 1, 100, get_full_vector<T>,
-            make_c_array( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ));
-    insert_single_test(verify_func, 2, 100, get_full_vector<T>,
-            make_c_array( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ));
-    insert_single_test(verify_func, 10, 100, get_full_vector<T>,
-            make_c_array( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ));
+    // This is not to test the total interface of emplace, just that it inserts
+    // properly....the other aspects of emplace are going to be tested
+    // elsewhere
+    insert_single_tests<T>(verify_func, [](auto& v, auto it, char data){
+        v.emplace(it, data);
+    });
 
     copyable_tests<T>(Copyable{}, verify_func);
 }
