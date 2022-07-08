@@ -277,37 +277,12 @@ struct static_vector {
         m_size = 0;
     }
 
-    // Insert element at specific position
-    // Requires: valid `pos` iterator, including begin() and end() inclusive.
-    // Ensures: new `value_type` copy_constructed at `pos`
-    // Complexity: exactly `end()` - `pos` moves and one copy
-    iterator insert(const_iterator pos, const value_type& value) {
-        if (full())
-            throw std::out_of_range("size()");
-        // Need mutable iterator to change items. Cast is legal in non-const
-        // methos.
-        iterator mut_pos = const_cast<iterator>(pos);
-        // move_backward is recommended when the end of the target range is
-        // outside the input range, last element is moved first
-        std::move_backward(mut_pos, end(), end() + 1);
-        // Construct value, do not assign nonexistent
-        new (mut_pos) value_type(value);
-        m_size++;
-        return mut_pos;
+    iterator insert(const_iterator pos, value_type const& value) {
+        return emplace(pos, value);
     }
+
     iterator insert(const_iterator pos, value_type&& value) {
-        if (full())
-            throw std::out_of_range("size()");
-        // Need mutable iterator to change items. Cast is legal in non-const
-        // methos.
-        iterator mut_pos = const_cast<iterator>(pos);
-        // move_backward is recommended when the end of the target range is
-        // outside the input range, last element is moved first
-        std::move_backward(mut_pos, end(), end() + 1);
-        // Construct value, do not assign nonexistent
-        new (mut_pos) value_type(std::move(value));
-        m_size++;
-        return mut_pos;
+        return emplace(pos, std::move(value));
     }
 
     // Insert `count` copies of `value` at `pos`
@@ -318,15 +293,15 @@ struct static_vector {
         // Need mutable iterator to change items. Cast is legal in non-const
         // methos.
         iterator mut_pos = const_cast<iterator>(pos);
-        // move_backward is recommended when the end of the target range is
-        // outside the input range, last element is moved first
-        std::move_backward(mut_pos, end(), end() + count);
-        // Construct value, do not assign nonexistent
-        std::for_each(
-            storage_begin() + (mut_pos - begin()),
-            storage_begin() + (mut_pos - begin()) + count,
-            [&](storage_type& store) { new (&store) value_type(value); });
+
+        // Insert them all at the end of the end of the collection, and then we
+        // will rotate them into place
+        std::for_each(storage_end(), storage_end()+count, [&](auto& x){
+            new (&x) value_type(value);
+        });
         m_size += count;
+        std::rotate(mut_pos, end()-count, end());
+
         return mut_pos;
     }
     template <typename InputIter>
@@ -346,16 +321,15 @@ struct static_vector {
         // Need mutable iterator to change items. Cast is legal in non-const
         // methos.
         iterator mut_pos = const_cast<iterator>(pos);
-        // move_backward is recommended when the end of the target range is
-        // outside the input range, last element is moved first
-        std::move_backward(mut_pos, end(), end() + count);
-        std::for_each(
-            storage_begin() + (mut_pos - begin()),
-            storage_begin() + (mut_pos - begin()) + count,
-            [&](storage_type& store) {
-                new (&store) value_type(*insert_begin++);
-            });
+
+        // Insert them all at the end of the end of the collection, and then we
+        // will rotate them into place
+        std::for_each(storage_end(), storage_end()+count, [&](auto& x){
+            new (&x) value_type(*insert_begin++);
+        });
         m_size += count;
+        std::rotate(mut_pos, end()-count, end());
+
         return mut_pos;
     }
     // TODO insert(const_iterator pos, InputIter begin, InputIter end)
@@ -370,12 +344,14 @@ struct static_vector {
         // Need mutable iterator to change items. Cast is legal in non-const
         // methos.
         iterator mut_pos = const_cast<iterator>(pos);
-        // move_backward is recommended when the end of the target range is
-        // outside the input range, last element is moved first
-        std::move_backward(mut_pos, end(), end() + 1);
-        // Construct value, do not assign nonexistent
-        new (mut_pos) value_type(std::forward<CtorArgs>(args)...);
+
+        // Insert the item at the end and then rotate to put into the correct
+        // place
+        new (end()) value_type(std::forward<CtorArgs>(args)...);
         m_size++;
+
+        std::rotate(mut_pos, end()-1, end());
+
         return mut_pos;
     }
 
@@ -383,9 +359,11 @@ struct static_vector {
     // TODO docs
     iterator erase(const_iterator pos) {
         iterator mut_pos = const_cast<iterator>(pos);
-        mut_pos->~value_type();
-        // move forward, starting from mut_pos and going towards end()
-        std::move(mut_pos + 1, end(), mut_pos);
+
+        // Rotate the array first and then call the destructor
+        std::rotate(mut_pos, mut_pos + 1, end());
+
+        (end()-1)->~value_type();
         m_size--;
         return mut_pos;
     }

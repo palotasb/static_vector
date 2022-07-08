@@ -5,6 +5,7 @@
 #include <iostream>
 #include <string>
 #include <tuple>
+#include <set>
 
 using namespace stlpb;
 
@@ -105,7 +106,10 @@ std::array<char, sizeof...(T)> make_c_array(T&&... t)
 // whatever in order to allow us to verify orders
 template<typename T = char>
 struct Copyable_t {
-    Copyable_t() : self(this) { constructed_++; }
+    Copyable_t() : self(this) {
+        ASSERT(constructed_.find(this) == std::end(constructed_));
+        constructed_.insert(this);
+    }
 
     template<typename U,
         typename=std::enable_if_t<
@@ -118,7 +122,8 @@ struct Copyable_t {
 
     Copyable_t(const Copyable_t& other)
         : self(other.verify() ? this : nullptr), inner(other.inner) {
-        constructed_++;
+        ASSERT(constructed_.find(this) == std::end(constructed_));
+        constructed_.insert(this);
     }
     Copyable_t& operator=(const Copyable_t& other) {
         self = other.verify() ? this : nullptr;
@@ -130,11 +135,16 @@ struct Copyable_t {
     Copyable_t& operator=(Copyable_t&& other) {
         return (*this) = static_cast<const Copyable_t&>(other);
     }
-    ~Copyable_t() { constructed_--; }
+    ~Copyable_t() {
+        auto x = constructed_.find(this);
+        ASSERT(x != std::end(constructed_)
+                && "Freeing already freed element or one that does not exist");
+        constructed_.erase(x);
+    }
 
     bool verify() const noexcept { return self == this; }
 
-    static int constructed() noexcept { return constructed_; }
+    static int constructed() noexcept { return constructed_.size(); }
 
     friend bool operator==(Copyable_t const& c, T const& t)
     {
@@ -154,11 +164,11 @@ struct Copyable_t {
 private:
     const Copyable_t* self;
     T inner = {};
-    static int constructed_;
+    static std::set<Copyable_t*> constructed_;
 };
 
 template<typename T>
-int Copyable_t<T>::constructed_ = 0;
+std::set<Copyable_t<T>*> Copyable_t<T>::constructed_;
 
 using Copyable = Copyable_t<>;
 
@@ -369,6 +379,29 @@ void insert_range_test(V const& verify, int index, std::array<char, N1> data,
     ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify), v);
 }
 
+template<typename V, typename F, size_t N2>
+void insert_n_test(V const& verify, int index, char data, int count,
+        F const& get_initial_vector, std::array<char, N2> const& final_status)
+{
+    auto v = get_initial_vector();
+    auto initial_size = v.size();
+
+    try
+    {
+        v.insert(v.begin() + index, count, data);
+        ASSERT_MESSAGE(initial_size + count <= 10 && "Should have thrown before getting here", v, initial_size, count);
+    }
+    catch (...)
+    {
+        ASSERT_MESSAGE(initial_size + count > 10, v, count, initial_size);
+    }
+
+    ASSERT_MESSAGE(
+            std::equal(v.begin(), v.end(), final_status.begin(), final_status.end()),
+            v, final_status);
+    ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify), v);
+}
+
 
 template<typename T, typename F>
 void n_default_test(F const& verify_func, int n)
@@ -545,32 +578,66 @@ void copyable_tests(std::true_type, F const& verify_func)
 
     insert_range_test(verify_func, 0, make_c_array(100, 101), get_empty_vector<T>,
             make_c_array( 100, 101 ));
+    insert_n_test(verify_func, 0, 100, 2, get_empty_vector<T>, make_c_array( 100, 100));
 
     insert_range_test(verify_func, 0, make_c_array(100, 101), get_123_vector<T>,
             make_c_array( 100, 101, 1, 2, 3 ));
+    insert_n_test(verify_func, 0, 100, 2, get_123_vector<T>,
+            make_c_array( 100, 100, 1, 2, 3 ));
+
     insert_range_test(verify_func, 1, make_c_array(100, 101), get_123_vector<T>,
             make_c_array( 1, 100, 101, 2, 3 ));
+    insert_n_test(verify_func, 1, 100, 2, get_123_vector<T>,
+            make_c_array( 1, 100, 100, 2, 3 ));
+
     insert_range_test(verify_func, 2, make_c_array(100, 101), get_123_vector<T>,
             make_c_array( 1, 2, 100, 101, 3 ));
+    insert_n_test(verify_func, 2, 100, 2, get_123_vector<T>,
+            make_c_array( 1, 2, 100, 100, 3 ));
+
     insert_range_test(verify_func, 3, make_c_array(100, 101), get_123_vector<T>,
             make_c_array( 1, 2, 3, 100, 101 ));
+    insert_n_test(verify_func, 3, 100, 2, get_123_vector<T>,
+            make_c_array( 1, 2, 3, 100, 100 ));
 
     insert_range_test(verify_func, 0, make_c_array(100, 101), get_full_vector<T>,
             make_c_array(1,2,3,4,5,6,7,8,9,10));
+    insert_n_test(verify_func, 0, 100, 2, get_full_vector<T>,
+            make_c_array(1,2,3,4,5,6,7,8,9,10));
+
     insert_range_test(verify_func, 1, make_c_array(100, 101), get_full_vector<T>,
             make_c_array(1,2,3,4,5,6,7,8,9,10));
+    insert_n_test(verify_func, 1, 100, 2, get_full_vector<T>,
+            make_c_array(1,2,3,4,5,6,7,8,9,10));
+
     insert_range_test(verify_func, 2, make_c_array(100, 101), get_full_vector<T>,
             make_c_array(1,2,3,4,5,6,7,8,9,10));
+    insert_n_test(verify_func, 2, 100, 2, get_full_vector<T>,
+            make_c_array(1,2,3,4,5,6,7,8,9,10));
+
     insert_range_test(verify_func, 10, make_c_array(100, 101), get_full_vector<T>,
+            make_c_array(1,2,3,4,5,6,7,8,9,10));
+    insert_n_test(verify_func, 10, 100, 2, get_full_vector<T>,
             make_c_array(1,2,3,4,5,6,7,8,9,10));
 
     insert_range_test(verify_func, 0, make_c_array(100, 101), get_mostly_full_vector<T>,
             make_c_array(1,2,3,4,5,6,7,8,9));
+    insert_n_test(verify_func, 0, 100, 2, get_mostly_full_vector<T>,
+            make_c_array(1,2,3,4,5,6,7,8,9));
+
     insert_range_test(verify_func, 1, make_c_array(100, 101), get_mostly_full_vector<T>,
             make_c_array(1,2,3,4,5,6,7,8,9));
+    insert_n_test(verify_func, 1, 100, 2, get_mostly_full_vector<T>,
+            make_c_array(1,2,3,4,5,6,7,8,9));
+
     insert_range_test(verify_func, 2, make_c_array(100, 101), get_mostly_full_vector<T>,
             make_c_array(1,2,3,4,5,6,7,8,9));
+    insert_n_test(verify_func, 2, 100, 2, get_mostly_full_vector<T>,
+            make_c_array(1,2,3,4,5,6,7,8,9));
+
     insert_range_test(verify_func, 10, make_c_array(100, 101), get_mostly_full_vector<T>,
+            make_c_array(1,2,3,4,5,6,7,8,9));
+    insert_n_test(verify_func, 10, 100, 2, get_mostly_full_vector<T>,
             make_c_array(1,2,3,4,5,6,7,8,9));
 }
 
