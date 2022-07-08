@@ -662,17 +662,24 @@ void generic_test()
 template<typename E>
 void emplace_test(E const& emplace)
 {
-    // Emplace element
-    static_vector<std::tuple<Movable, Copyable>, 10> v;
-    const Copyable c(char(12));
-    emplace(v, v.end(), Movable{char(42)}, c);
-    ASSERT_EQUAL(v.size(), 1);
+    {
+        // Emplace element
+        static_vector<std::tuple<Movable, Copyable>, 10> v;
+        const Copyable c(char(12));
+        emplace(v, v.end(), Movable{char(42)}, c);
+        ASSERT_EQUAL(v.size(), 1);
 
-    ASSERT_EQUAL(std::get<0>(v[0]), 42);
-    ASSERT_EQUAL(std::get<1>(v[0]), 12);
+        ASSERT_EQUAL(std::get<0>(v[0]), 42);
+        ASSERT_EQUAL(std::get<1>(v[0]), 12);
 
-    ASSERT(std::get<0>(v[0]).verify());
-    ASSERT(std::get<1>(v[0]).verify());
+        ASSERT(std::get<0>(v[0]).verify());
+        ASSERT(std::get<1>(v[0]).verify());
+    }
+    {
+        static_vector<std::string, 10> v;
+        emplace(v, v.end(), 10, 'a');
+        ASSERT_EQUAL(v[0], "aaaaaaaaaa");
+    }
 }
 
 int main(int, char* []) {
