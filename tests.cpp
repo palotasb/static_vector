@@ -303,21 +303,31 @@ void insert_single_test(V const& verify, int index, char data, I const& insert,
 }
 
 template<typename T, typename V, typename I>
-void insert_single_tests(V const& verify_func, I const& insert)
+void insert_single_tests(V const& verify_func, I const& insert, bool only_back = false)
 {
-    insert_single_test(verify_func, 0, 100, insert, get_empty_vector<T>, make_c_array(100));
+    if (!only_back)
+    {
+        insert_single_test(verify_func, 0, 100, insert, get_empty_vector<T>,
+                make_c_array(100));
+        insert_single_test(verify_func, 0, 100, insert, get_123_vector<T>,
+                make_c_array( 100, 1, 2, 3 ));
+        insert_single_test(verify_func, 1, 100, insert, get_123_vector<T>,
+                make_c_array( 1, 100, 2, 3 ));
+        insert_single_test(verify_func, 2, 100, insert, get_123_vector<T>,
+                make_c_array( 1, 2, 100, 3 ));
 
-    insert_single_test(verify_func, 0, 100, insert, get_123_vector<T>, make_c_array( 100, 1, 2, 3 ));
-    insert_single_test(verify_func, 1, 100, insert, get_123_vector<T>, make_c_array( 1, 100, 2, 3 ));
-    insert_single_test(verify_func, 2, 100, insert, get_123_vector<T>, make_c_array( 1, 2, 100, 3 ));
-    insert_single_test(verify_func, 3, 100, insert, get_123_vector<T>, make_c_array( 1, 2, 3, 100 ));
 
-    insert_single_test(verify_func, 0, 100, insert, get_full_vector<T>,
-            make_c_array( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ));
-    insert_single_test(verify_func, 1, 100, insert, get_full_vector<T>,
-            make_c_array( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ));
-    insert_single_test(verify_func, 2, 100, insert, get_full_vector<T>,
-            make_c_array( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ));
+        insert_single_test(verify_func, 0, 100, insert, get_full_vector<T>,
+                make_c_array( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ));
+        insert_single_test(verify_func, 1, 100, insert, get_full_vector<T>,
+                make_c_array( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ));
+        insert_single_test(verify_func, 2, 100, insert, get_full_vector<T>,
+                make_c_array( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ));
+    }
+
+    insert_single_test(verify_func, 3, 100, insert, get_123_vector<T>,
+            make_c_array( 1, 2, 3, 100 ));
+
     insert_single_test(verify_func, 10, 100, insert, get_full_vector<T>,
             make_c_array( 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ));
 }
@@ -630,6 +640,10 @@ void generic_test(F const& verify_func)
     insert_single_tests<T>(verify_func, [](auto& v, auto it, char data){
         v.emplace(it, data);
     });
+
+    insert_single_tests<T>(verify_func, [](auto& v, auto it, char data){
+        v.push_back(data);
+    }, true);
 
     copyable_tests<T>(Copyable{}, verify_func);
 }
