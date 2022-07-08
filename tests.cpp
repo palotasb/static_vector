@@ -642,6 +642,11 @@ void generic_test(F const& verify_func)
     });
 
     insert_single_tests<T>(verify_func, [](auto& v, auto it, char data){
+        v.emplace_back(data);
+    }, true);
+
+
+    insert_single_tests<T>(verify_func, [](auto& v, auto it, char data){
         v.push_back(data);
     }, true);
 
@@ -652,6 +657,22 @@ template<typename T>
 void generic_test()
 {
     return generic_test<T>([](auto const& x) { return true; });
+}
+
+template<typename E>
+void emplace_test(E const& emplace)
+{
+    // Emplace element
+    static_vector<std::tuple<Movable, Copyable>, 10> v;
+    const Copyable c(char(12));
+    emplace(v, v.end(), Movable{char(42)}, c);
+    ASSERT_EQUAL(v.size(), 1);
+
+    ASSERT_EQUAL(std::get<0>(v[0]), 42);
+    ASSERT_EQUAL(std::get<1>(v[0]), 12);
+
+    ASSERT(std::get<0>(v[0]).verify());
+    ASSERT(std::get<1>(v[0]).verify());
 }
 
 int main(int, char* []) {
@@ -673,19 +694,12 @@ int main(int, char* []) {
             // TODO add more exhaustive tests for this method
             // TODO test return value
         }
-        {
-            // Emplace element
-            static_vector<std::tuple<Movable, Copyable>, 10> v(3);
-            const Copyable c;
-            v.emplace(v.begin() + 1, Movable{}, c);
-            ASSERT_EQUAL(v.size(), 4);
-            for (const auto& x : v) {
-                ASSERT(std::get<0>(x).verify());
-                ASSERT(std::get<1>(x).verify());
-            }
-            // TODO maybe add more exhaustive tests for this method
-            // TODO test return value
-        }
+        emplace_test([](auto& v, auto it, auto&&... data){
+            v.emplace(it, std::forward<decltype(data)>(data)...);
+        });
+        emplace_test([](auto& v, auto it, auto&&... data){
+            v.emplace_back(std::forward<decltype(data)>(data)...);
+        });
         {
             // Erase one element
             static_vector<int, 10> v{1, 2, 3};

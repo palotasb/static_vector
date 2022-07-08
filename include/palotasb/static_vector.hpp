@@ -406,7 +406,14 @@ struct static_vector {
         m_size++;
     }
 
-    // TODO emplace_back
+    template <typename... CtorArgs>
+    void emplace_back(CtorArgs&&... args) {
+        if (full())
+            throw std::out_of_range("size()");
+        new (storage_end()) value_type(std::forward<CtorArgs>(args)...);
+        m_size++;
+    }
+
     // TODO pop_back
     // TODO resize
     // TODO swap
