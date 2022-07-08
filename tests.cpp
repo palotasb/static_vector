@@ -279,6 +279,20 @@ static_vector<T, 10> get_empty_vector()
     return {};
 }
 
+template<typename V, typename F, size_t N>
+void erase_single_test(V const& verify, int index,
+        F const& get_initial_vector, std::array<char, N> const& final_status)
+{
+    auto v = get_initial_vector();
+    auto initial_size = v.size();
+    v.erase(v.begin() + index);
+
+    ASSERT_MESSAGE(
+            std::equal(v.begin(), v.end(), final_status.begin(), final_status.end()),
+            v, final_status);
+    ASSERT_MESSAGE(std::all_of(v.begin(), v.end(), verify), v);
+}
+
 template<typename V, typename I, typename F, size_t N>
 void insert_single_test(V const& verify, int index, char data, I const& insert,
         F const& get_initial_vector, std::array<char, N> const& final_status)
@@ -650,6 +664,10 @@ void generic_test(F const& verify_func)
         v.push_back(data);
     }, true);
 
+    erase_single_test(verify_func, 0, get_123_vector<T>, make_c_array(2,3));
+    erase_single_test(verify_func, 1, get_123_vector<T>, make_c_array(1,3));
+    erase_single_test(verify_func, 2, get_123_vector<T>, make_c_array(1,2));
+
     copyable_tests<T>(Copyable{}, verify_func);
 }
 
@@ -707,14 +725,6 @@ int main(int, char* []) {
         emplace_test([](auto& v, auto it, auto&&... data){
             v.emplace_back(std::forward<decltype(data)>(data)...);
         });
-        {
-            // Erase one element
-            static_vector<int, 10> v{1, 2, 3};
-            v.erase(v.begin() + 1);
-            ASSERT_EQUAL(v.size(), 2);
-            ASSERT_EQUAL(v[0], 1);
-            ASSERT_EQUAL(v[1], 3);
-        }
         {
 
             static_vector<Copyable, 10> v{3};
